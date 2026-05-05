@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>汉字谜盒 | AI 字谜对话</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- ==================== 侧边栏 ==================== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1 class="app-title">🧩 汉字谜盒</h1>
+            <button id="newSessionBtn" class="btn-new-session">＋ 新建会话</button>
+        </div>
+        <div class="session-list" id="sessionList">
+            <div class="empty-sessions">暂无会话，点击上方按钮创建</div>
+        </div>
+    </aside>
+
+    <!-- ==================== 主对话区 ==================== -->
+    <main class="chat-area" id="chatArea">
+
+        <!-- 未选择会话时的空状态 -->
+        <div class="chat-placeholder" id="chatPlaceholder">
+            <div class="placeholder-icon">📦</div>
+            <h2>汉字谜盒 · AI 字谜对话</h2>
+            <p>在左侧选择一个会话，或新建会话开始与 AI 互动</p>
+        </div>
+
+        <!-- 选中会话后的对话界面 -->
+        <div class="chat-active" id="chatActive" style="display:none;">
+            <div class="chat-header" id="chatHeader">
+                <span class="chat-session-name" id="chatSessionName"></span>
+                <button id="deleteSessionBtn" class="btn-delete" title="删除此会话">🗑</button>
+            </div>
+            <div class="message-list" id="messageList">
+            </div>
+            <div class="chat-input-bar">
+                <input type="text" id="messageInput" placeholder="输入消息，与 AI 互动..." autocomplete="off">
+                <button id="sendBtn" class="btn-send">发送</button>
+            </div>
+        </div>
+    </main>
+
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

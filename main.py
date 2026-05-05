@@ -147,3 +147,9 @@ def send_message(session_id: str, body: SendMessageRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+print("后端服务器已启动，访问 http://127.0.0.1,port=8000/ 查看前端界面")
+
+# 以上代码提供了一个完整的 FastAPI 后端框架，包含了所有必要的 API 端点和数据模型定义。你需要在对应的 TODO 注释处实现具体的业务逻辑，如会话管理、消息存储、AI 交互等。
+# 注意：目前所有 API 都返回 501 Not Implemented 状态码，表示功能尚未实现。你需要根据需求逐步完善每个接口的逻辑。

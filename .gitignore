@@ -8,8 +8,9 @@ build/
 # Virtual environment
 .venv/
 
-# IDE
+# IDE / Tools
 .vscode/
+.claude/
 
 # OS
 .DS_Store

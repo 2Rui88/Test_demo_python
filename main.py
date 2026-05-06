@@ -109,36 +109,38 @@ def list_sessions():
 
 @app.post("/api/sessions")
 def create_session(body: CreateSessionRequest):
-    """
-    创建一个新会话。
-
-    前端调用: POST /api/sessions
-    请求体:   { name }
-    期望返回: { id, name, createdAt }
-    """
-    # TODO: 生成唯一 ID、记录创建时间，持久化新会话
-    return JSONResponse(
-        content={"feedback": "创建逻辑尚未实现"},
-        status_code=501,
-    )
+    """创建一个新会话，持久化到 sessions.json。"""
+    sessions = read_json(SESSIONS_FILE)
+    session = {
+        "id": new_id(),
+        "name": body.name.strip() or "新会话",
+        "createdAt": now_iso(),
+        "systemPrompt": "你是一个汉字谜语助手，请用有趣的方式与用户互动字谜。"
+    }
+    sessions.append(session)
+    write_json(SESSIONS_FILE, sessions)
+    return session
 
 
 # ---------- ③ 获取指定会话 ----------
 
 @app.get("/api/sessions/{session_id}")
 def get_session(session_id: str):
-    """
-    获取指定会话的详细信息（含消息记录）。
-
-    前端调用: GET /api/sessions/{session_id}
-    期望返回: { id, name, messages: [{ role, content, timestamp }] }
-
-    role 取值: "user" | "assistant"
-    """
-    # TODO: 根据 session_id 从存储中查出会话元信息 + 全部消息
+    """返回指定会话的元信息 + 所属的全部消息。"""
+    sessions = read_json(SESSIONS_FILE)
+    for s in sessions:
+        if s["id"] == session_id:
+            messages = read_json(MESSAGES_FILE)
+            session_messages = [m for m in messages if m.get("sessionId") == session_id]
+            session_messages.sort(key=lambda m: m.get("timestamp", ""))
+            return {
+                "id": s["id"],
+                "name": s["name"],
+                "messages": session_messages
+            }
     return JSONResponse(
-        content={"feedback": "查询逻辑尚未实现"},
-        status_code=501,
+        content={"feedback": "会话不存在"},
+        status_code=404,
     )
 
 
@@ -146,18 +148,16 @@ def get_session(session_id: str):
 
 @app.delete("/api/sessions/{session_id}")
 def delete_session(session_id: str):
-    """
-    删除指定会话及其所有消息记录。
+    """删除指定会话及其所有消息记录。"""
+    sessions = read_json(SESSIONS_FILE)
+    sessions = [s for s in sessions if s["id"] != session_id]
+    write_json(SESSIONS_FILE, sessions)
 
-    前端调用: DELETE /api/sessions/{session_id}
-    期望返回: { feedback }
-    """
-    # TODO: 删除 session_id 对应的会话及消息
-    return JSONResponse(
-        content={"feedback": "删除逻辑尚未实现"},
-        status_code=501,
-    )
+    messages = read_json(MESSAGES_FILE)
+    messages = [m for m in messages if m.get("sessionId") != session_id]
+    write_json(MESSAGES_FILE, messages)
 
+    return {"feedback": "会话已删除"}
 
 # ---------- ⑤ 发送消息（与 AI 交互） ----------
 

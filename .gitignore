@@ -10,7 +10,6 @@ build/
 
 # IDE / Tools
 .vscode/
-.claude/
 
 # OS
 .DS_Store

@@ -10,11 +10,55 @@ REST API 端点:
   POST   /api/sessions/{session_id}/messages  → 发送消息并获取 AI 回复
 """
 
+import json
+import os
+import uuid
+from datetime import datetime, timezone, timedelta
+
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
+
+# ============================================================
+# 数据文件路径
+# ============================================================
+DATA_DIR = "data"
+SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
+MESSAGES_FILE = os.path.join(DATA_DIR, "messages.json")
+
+# 确保 data/ 目录存在
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
+# ============================================================
+# JSON 文件读写辅助函数
+# ============================================================
+
+def read_json(filepath):
+    """读取 JSON 文件，返回 Python 对象。文件不存在则返回空列表。"""
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def write_json(filepath, data):
+    """将 Python 对象写入 JSON 文件。"""
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def now_iso():
+    """返回当前时间的 ISO 格式字符串（东八区）。"""
+    tz = timezone(timedelta(hours=8))
+    return datetime.now(tz).isoformat()
+
+
+def new_id():
+    """生成一个短的唯一 ID。"""
+    return uuid.uuid4().hex[:12]
 
 # ============================================================
 # FastAPI 应用实例
@@ -55,14 +99,10 @@ def root():
 
 @app.get("/api/sessions")
 def list_sessions():
-    """
-    获取所有会话的列表（不含消息内容）。
-
-    前端调用: GET /api/sessions
-    期望返回: { sessions: [{ id, name, createdAt }] }
-    """
-    # TODO: 从存储中读取所有会话，按创建时间倒序排列
-    return {"sessions": []}
+    """返回所有会话，按创建时间倒序。"""
+    sessions = read_json(SESSIONS_FILE)
+    sessions.sort(key=lambda s: s.get("createdAt", ""), reverse=True)
+    return {"sessions": sessions}
 
 
 # ---------- ② 新建会话 ----------
@@ -147,11 +187,3 @@ def send_message(session_id: str, body: SendMessageRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
-
-
-print("后端服务器已启动，访问 http://127.0.0.1,port=8000/ 查看前端界面")
-
-# 以上代码提供了一个完整的 FastAPI 后端框架，包含了所有必要的 API 端点和数据模型定义。你需要在对应的 TODO 注释处实现具体的业务逻辑，如会话管理、消息存储、AI 交互等。
-# 注意：目前所有 API 都返回 501 Not Implemented 状态码，表示功能尚未实现。你需要根据需求逐步完善每个接口的逻辑。
-
-print("git第二次提交测试")

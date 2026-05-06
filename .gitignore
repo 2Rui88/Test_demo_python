@@ -12,6 +12,9 @@ build/
 .vscode/
 .claude/
 
+# Data
+data/
+
 # OS
 .DS_Store
 Thumbs.db

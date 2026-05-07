@@ -21,6 +21,24 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 from openai import OpenAI
+import logging
+
+# ============================================================
+# 日志配置
+# ============================================================
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),                                          # 控制台输出
+        logging.FileHandler(os.path.join(LOG_DIR, "app.log"), encoding="utf-8")  # 文件输出
+    ]
+)
+logger = logging.getLogger("汉字谜盒")
+
 
 # ============================================================
 # 数据文件路径
@@ -29,7 +47,6 @@ DATA_DIR = "data"
 SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
 MESSAGES_FILE = os.path.join(DATA_DIR, "messages.json")
 
-# 确保 data/ 目录存在
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -83,11 +100,14 @@ def call_ai(system_prompt: str, messages: list):
     for m in messages:
         chat_messages.append({"role": m["role"], "content": m["content"]})
 
+    logger.info("发送 AI 请求 model=%s 消息数=%d", AI_MODEL, len(chat_messages))
     response = ai_client.chat.completions.create(
         model=AI_MODEL,
         messages=chat_messages
     )
-    return response.choices[0].message.content
+    reply = response.choices[0].message.content or ""
+    logger.info("AI 回复长度=%d 字符", len(reply))
+    return reply
 
 # ============================================================
 # FastAPI 应用实例
@@ -129,6 +149,7 @@ def root():
 @app.get("/api/sessions")
 def list_sessions():
     """返回所有会话，按创建时间倒序。"""
+    logger.info("GET /api/sessions — 获取会话列表")
     sessions = read_json(SESSIONS_FILE)
     sessions.sort(key=lambda s: s.get("createdAt", ""), reverse=True)
     return {"sessions": sessions}
@@ -139,6 +160,7 @@ def list_sessions():
 @app.post("/api/sessions")
 def create_session(body: CreateSessionRequest):
     """创建一个新会话，持久化到 sessions.json。"""
+    logger.info("POST /api/sessions — 新建会话 name=%s", body.name)
     sessions = read_json(SESSIONS_FILE)
     session = {
         "id": new_id(),
@@ -148,6 +170,7 @@ def create_session(body: CreateSessionRequest):
     }
     sessions.append(session)
     write_json(SESSIONS_FILE, sessions)
+    logger.info("会话已创建 id=%s", session["id"])
     return session
 
 
@@ -156,17 +179,20 @@ def create_session(body: CreateSessionRequest):
 @app.get("/api/sessions/{session_id}")
 def get_session(session_id: str):
     """返回指定会话的元信息 + 所属的全部消息。"""
+    logger.info("GET /api/sessions/%s — 获取会话详情", session_id)
     sessions = read_json(SESSIONS_FILE)
     for s in sessions:
         if s["id"] == session_id:
             messages = read_json(MESSAGES_FILE)
             session_messages = [m for m in messages if m.get("sessionId") == session_id]
             session_messages.sort(key=lambda m: m.get("timestamp", ""))
+            logger.info("会话查询成功 id=%s 消息数=%d", session_id, len(session_messages))
             return {
                 "id": s["id"],
                 "name": s["name"],
                 "messages": session_messages
             }
+    logger.warning("会话不存在 id=%s", session_id)
     return JSONResponse(
         content={"feedback": "会话不存在"},
         status_code=404,
@@ -178,6 +204,7 @@ def get_session(session_id: str):
 @app.delete("/api/sessions/{session_id}")
 def delete_session(session_id: str):
     """删除指定会话及其所有消息记录。"""
+    logger.info("DELETE /api/sessions/%s — 删除会话", session_id)
     sessions = read_json(SESSIONS_FILE)
     sessions = [s for s in sessions if s["id"] != session_id]
     write_json(SESSIONS_FILE, sessions)
@@ -186,15 +213,19 @@ def delete_session(session_id: str):
     messages = [m for m in messages if m.get("sessionId") != session_id]
     write_json(MESSAGES_FILE, messages)
 
+    logger.info("会话已删除 id=%s", session_id)
     return {"feedback": "会话已删除"}
 
 # ---------- ⑤ 发送消息（与 AI 交互） ----------
 
 @app.post("/api/sessions/{session_id}/messages")
 def send_message(session_id: str, body: SendMessageRequest):
+    logger.info("POST /api/sessions/%s/messages — 发送消息", session_id)
+
     # ① 输入校验
     content = body.content.strip()
     if not content:
+        logger.warning("消息为空，拒绝处理")
         return JSONResponse(
             content={"feedback": "消息不能为空"},
             status_code=400,
@@ -210,6 +241,7 @@ def send_message(session_id: str, body: SendMessageRequest):
     }
     messages.append(user_msg)
     write_json(MESSAGES_FILE, messages)
+    logger.info("用户消息已保存 session_id=%s", session_id)
 
     # ③ 调用 AI 大模型生成回复
     sessions = read_json(SESSIONS_FILE)
@@ -220,7 +252,15 @@ def send_message(session_id: str, body: SendMessageRequest):
             break
 
     history = [m for m in messages if m.get("sessionId") == session_id]
-    ai_reply = call_ai(system_prompt, history)
+    logger.info("调用 AI 模型 session_id=%s 历史消息数=%d", session_id, len(history))
+    try:
+        ai_reply = call_ai(system_prompt, history)
+    except Exception as e:
+        logger.error("AI 调用失败 session_id=%s error=%s", session_id, str(e))
+        return JSONResponse(
+            content={"feedback": "AI 服务暂时不可用，请稍后重试"},
+            status_code=500,
+        )
 
     # ④ 持久化 AI 回复
     assistant_msg = {
@@ -231,6 +271,7 @@ def send_message(session_id: str, body: SendMessageRequest):
     }
     messages.append(assistant_msg)
     write_json(MESSAGES_FILE, messages)
+    logger.info("AI 回复已保存 session_id=%s", session_id)
 
     # ⑤ 返回该会话的完整消息列表
     session_messages = [m for m in messages if m.get("sessionId") == session_id]

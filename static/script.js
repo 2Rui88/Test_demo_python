@@ -1,20 +1,20 @@
 // 前端只负责通信与 DOM 渲染，所有业务逻辑（会话管理、AI 对话、校验）由后端实现
 
-var API_BASE = "/api";
+const API_BASE = "/api";
 
 // ========== DOM 元素 ==========
-var sessionListEl    = document.getElementById("sessionList");
-var newSessionBtn    = document.getElementById("newSessionBtn");
-var chatPlaceholder  = document.getElementById("chatPlaceholder");
-var chatActive       = document.getElementById("chatActive");
-var chatSessionName  = document.getElementById("chatSessionName");
-var deleteSessionBtn = document.getElementById("deleteSessionBtn");
-var messageListEl    = document.getElementById("messageList");
-var messageInput     = document.getElementById("messageInput");
-var sendBtn          = document.getElementById("sendBtn");
+const sessionListEl    = document.getElementById("sessionList");
+const newSessionBtn    = document.getElementById("newSessionBtn");
+const chatPlaceholder  = document.getElementById("chatPlaceholder");
+const chatActive       = document.getElementById("chatActive");
+const chatSessionName  = document.getElementById("chatSessionName");
+const deleteSessionBtn = document.getElementById("deleteSessionBtn");
+const messageListEl    = document.getElementById("messageList");
+const messageInput     = document.getElementById("messageInput");
+const sendBtn          = document.getElementById("sendBtn");
 
-var currentSessionId = null;   // 当前选中会话 ID（仅 UI 用途）
-var sessionsCache    = [];      // 会话列表缓存（仅 UI 用途）
+let currentSessionId = null;
+let sessionsCache    = [];
 
 // ========== 纯展示工具 ==========
 
@@ -26,6 +26,14 @@ function escapeHtml(str) {
         if (m === ">") return "&gt;";
         return m;
     });
+}
+
+function showToast(msg, isError) {
+    var toast = document.createElement("div");
+    toast.className = "toast" + (isError ? " error" : "");
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
 }
 
 // ========== 侧边栏渲染 ==========
@@ -105,7 +113,7 @@ function showChat(sessionId, sessionName) {
     messageInput.focus();
 }
 
-// ========== API 调用（仅发送请求、渲染响应） ==========
+// ========== API 调用 ==========
 
 async function loadSessionList() {
     try {
@@ -115,7 +123,8 @@ async function loadSessionList() {
         renderSessionList(data.sessions);
     } catch (err) {
         console.error(err);
-        sessionListEl.innerHTML = '<div class="empty-sessions">⚠️ 加载失败</div>';
+        sessionListEl.innerHTML = '<div class="empty-sessions">⚠️ 加载失败，<a href="#" onclick="loadSessionList()">点击重试</a></div>';
+        showToast("加载会话列表失败", true);
     }
 }
 
@@ -128,10 +137,14 @@ async function createSession() {
         });
         if (!res.ok) throw new Error("创建失败");
         var session = await res.json();
-        await loadSessionList();
-        await loadSession(session.id);
+        // 直接使用 POST 返回的对象，追加到缓存并打开，避免两次额外请求
+        sessionsCache.unshift(session);
+        renderSessionList(sessionsCache);
+        showChat(session.id, session.name);
+        renderMessages([]);
     } catch (err) {
         console.error(err);
+        showToast("创建会话失败", true);
     }
 }
 
@@ -144,6 +157,7 @@ async function loadSession(sessionId) {
         renderMessages(session.messages);
     } catch (err) {
         console.error(err);
+        showToast("加载会话失败", true);
     }
 }
 
@@ -157,14 +171,18 @@ async function deleteSession(sessionId) {
         if (currentSessionId === sessionId) {
             showPlaceholder();
         }
-        await loadSessionList();
+        // 从缓存中移除，避免额外请求
+        sessionsCache = sessionsCache.filter(function(s) { return s.id !== sessionId; });
+        renderSessionList(sessionsCache);
     } catch (err) {
         console.error(err);
+        showToast("删除会话失败", true);
     }
 }
 
 async function sendMessage() {
     var content = messageInput.value.trim();
+    if (!content) return;
     if (!currentSessionId) return;
 
     sendBtn.disabled = true;
@@ -179,13 +197,11 @@ async function sendMessage() {
         });
         if (!res.ok) throw new Error("发送失败");
         var data = await res.json();
-        // 后端返回 { messages: [...] } 或 { feedback, messages }
         renderMessages(data.messages);
         messageInput.value = "";
     } catch (err) {
         console.error(err);
-        messageListEl.insertAdjacentHTML("beforeend",
-            '<div style="color:#d9534f;text-align:center;padding:8px;">⚠️ 发送失败，请重试</div>');
+        showToast("发送失败，请重试", true);
     } finally {
         sendBtn.disabled = false;
         messageInput.disabled = false;
@@ -194,7 +210,7 @@ async function sendMessage() {
     }
 }
 
-// ========== 事件绑定（纯 UI 连线） ==========
+// ========== 事件绑定 ==========
 
 function bindEvents() {
     newSessionBtn.addEventListener("click", createSession);
@@ -216,14 +232,12 @@ function bindEvents() {
         var item = e.target.closest(".session-item");
         if (!item) return;
 
-        // 点击删除按钮
         if (e.target.getAttribute("data-action") === "delete") {
             e.stopPropagation();
             deleteSession(e.target.getAttribute("data-id"));
             return;
         }
 
-        // 点击会话项 → 加载
         var id = item.getAttribute("data-id");
         if (id && id !== currentSessionId) {
             loadSession(id);

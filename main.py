@@ -81,9 +81,9 @@ def new_id():
 # ============================================================
 # AI 大模型配置（请填入你的 API Key 和 Base URL）
 # ============================================================
-AI_API_KEY = ""                          # 替换为你的 API Key
-AI_BASE_URL = ""                         # 模型兼容地址
-AI_MODEL = ""                            # 模型名称
+AI_API_KEY = "sk-c28bb00d7eb249988640d096fa6c2092"                          # 替换为你的 API Key
+AI_BASE_URL = "https://api.deepseek.com"                         # 模型兼容地址
+AI_MODEL = "deepseek-v4-pro"                            # 模型名称
 
 # OpenAI 兼容客户端
 ai_client = OpenAI(api_key=AI_API_KEY, base_url=AI_BASE_URL)
